@@ -1,0 +1,10 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "python3 -m pip install -e ."
+
+[deploy]
+startCommand = "sh scripts/start_api.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

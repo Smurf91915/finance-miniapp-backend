@@ -1,0 +1,8 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "python3 -m pip install -e ."
+
+[deploy]
+startCommand = "sh scripts/start_bot.sh"
+restartPolicyType = "ALWAYS"
+restartPolicyMaxRetries = 10
