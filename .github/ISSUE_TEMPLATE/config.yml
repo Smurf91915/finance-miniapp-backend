@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project Runbook
+    url: https://github.com/Smurf91915/finance-miniapp-backend/blob/main/RUNBOOK.md
+    about: Check the deployment and local run instructions before opening an issue.
