@@ -42,6 +42,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
 BOT_TOKEN=...
 MINI_APP_URL=https://<frontend-public-url>
 BACKEND_BASE_URL=http://127.0.0.1:8000/api/v1
+BOT_MODE=polling
 ```
 
 Если бот запускается локально и Telegram API из сети не режется:
@@ -99,7 +100,31 @@ VITE_API_BASE_URL=https://<api-domain>/api/v1
 2. вставь frontend-домен в `CORS_ALLOWED_ORIGINS` API service
 3. redeploy API и Bot
 
-## 5. Smoke Test
+## 5. Бесплатный стек без Railway
+
+Бэкенд теперь умеет работать в одном web service вместе с Telegram-ботом через webhook. Для этого нужны такие переменные:
+
+```env
+DATABASE_URL=postgresql+psycopg://postgres:<password>@<host>/<db>?sslmode=require
+BOT_TOKEN=...
+BOT_MODE=webhook
+PUBLIC_BASE_URL=https://<backend-domain>
+MINI_APP_URL=https://<frontend-domain>
+CORS_ALLOWED_ORIGINS=https://<frontend-domain>
+DEBUG=false
+```
+
+`BACKEND_BASE_URL` в webhook-режиме можно не задавать: bot будет ходить в API через `127.0.0.1:$PORT`.
+
+Схема миграции:
+
+1. PostgreSQL перенести в Neon
+2. frontend вынести на Render Static Site или Cloudflare Pages
+3. backend + bot поднять одним web service на Render через `uvicorn app.main:app`
+
+Подробный план смотри в `FREE_STACK_MIGRATION.md`.
+
+## 6. Smoke Test
 
 1. Открой чат с ботом и выполни `/start`
 2. Нажми `Открыть приложение`
@@ -109,7 +134,7 @@ VITE_API_BASE_URL=https://<api-domain>/api/v1
 6. Выполни `Цели и накопления`
 7. Проверь, что данные видны и в боте, и в Mini App
 
-## 6. Следующий технический долг
+## 7. Следующий технический долг
 
 - постоянный prod-домен вместо временного Railway subdomain
 - редактирование и возвраты из интерфейса

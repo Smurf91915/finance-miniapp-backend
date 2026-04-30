@@ -3,12 +3,12 @@ from uuid import UUID
 
 import httpx
 
-from app.core.config import settings
+from app.core.config import resolved_backend_base_url
 
 
 class BackendClient:
     def __init__(self) -> None:
-        self._client = httpx.AsyncClient(base_url=settings.backend_base_url, timeout=20.0)
+        self._client = httpx.AsyncClient(base_url=resolved_backend_base_url(), timeout=20.0)
 
     async def close(self) -> None:
         await self._client.aclose()
