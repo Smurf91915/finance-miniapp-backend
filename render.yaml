@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: finance-miniapp-backend
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_MODE
+        value: webhook
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: MINI_APP_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      - key: DEBUG
+        value: "false"
