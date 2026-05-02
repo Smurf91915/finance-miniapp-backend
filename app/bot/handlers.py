@@ -15,6 +15,28 @@ from app.core.config import settings
 router = Router()
 
 
+def _backend_error_message(exc: httpx.HTTPError, fallback: str) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = exc.response
+        detail: str | None = None
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict):
+            raw_detail = payload.get("detail")
+            if isinstance(raw_detail, str) and raw_detail.strip():
+                detail = raw_detail.strip()
+
+        if response.status_code == 400 and detail == "Could not parse amount from text":
+            return "Не вижу сумму. Напиши, например: `кофе 320`, `зарплата 120000`, `вклад 15000`."
+
+        if detail:
+            return f"{fallback}: {detail}"
+
+    return f"{fallback}: {exc}"
+
+
 def _transaction_dt(message: Message) -> str:
     return (message.date or datetime.now(timezone.utc)).isoformat()
 
@@ -42,7 +64,7 @@ async def _send_month_summary(message: Message, backend: BackendClient) -> None:
     try:
         dashboard = await backend.get_dashboard(message.from_user.id)
     except httpx.HTTPError as exc:
-        await message.answer(f"Не удалось получить сводку: {exc}")
+        await message.answer(_backend_error_message(exc, "Не удалось получить сводку"))
         return
 
     await message.answer("\n".join(_summary_lines(dashboard)))
@@ -52,7 +74,7 @@ async def _send_goals_summary(message: Message, backend: BackendClient) -> None:
     try:
         goals = await backend.list_goals(message.from_user.id)
     except httpx.HTTPError as exc:
-        await message.answer(f"Не удалось получить цели: {exc}")
+        await message.answer(_backend_error_message(exc, "Не удалось получить цели"))
         return
 
     if not goals:
@@ -119,7 +141,7 @@ async def handle_reserve_amount(message: Message, state: FSMContext, backend: Ba
     try:
         created = await backend.create_income(message.from_user.id, income_payload)
     except httpx.HTTPError as exc:
-        await message.answer(f"Не удалось записать доход: {exc}")
+        await message.answer(_backend_error_message(exc, "Не удалось записать доход"))
         return
     finally:
         await state.clear()
@@ -183,7 +205,7 @@ async def handle_text(message: Message, state: FSMContext, backend: BackendClien
                 },
             )
         except httpx.HTTPError as exc:
-            await message.answer(f"Не удалось записать пополнение: {exc}")
+            await message.answer(_backend_error_message(exc, "Не удалось записать пополнение"))
             return
 
         await message.answer(f"{goal_name}: {format_minor(created['amount_minor'])}")
@@ -192,7 +214,7 @@ async def handle_text(message: Message, state: FSMContext, backend: BackendClien
     try:
         parsed = await backend.parse_text(message.from_user.id, text)
     except httpx.HTTPError as exc:
-        await message.answer(f"Не удалось разобрать сообщение: {exc}")
+        await message.answer(_backend_error_message(exc, "Не удалось разобрать сообщение"))
         return
 
     tx_type = parsed["type"]
@@ -234,7 +256,7 @@ async def handle_text(message: Message, state: FSMContext, backend: BackendClien
                 },
             )
         except httpx.HTTPError as exc:
-            await message.answer(f"Не удалось записать инвестицию: {exc}")
+            await message.answer(_backend_error_message(exc, "Не удалось записать инвестицию"))
             return
         await message.answer(f"Инвестиция записана: {format_minor(created['amount_minor'])}")
         return
@@ -260,7 +282,7 @@ async def handle_text(message: Message, state: FSMContext, backend: BackendClien
                 },
             )
         except httpx.HTTPError as exc:
-            await message.answer(f"Не удалось записать расход: {exc}")
+            await message.answer(_backend_error_message(exc, "Не удалось записать расход"))
             return
 
         category_label = created.get("subcategory_name") or created.get("category_name") or "Расход"
