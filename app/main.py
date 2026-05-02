@@ -10,12 +10,14 @@ from app.core.config import (
     normalized_telegram_webhook_path,
     parsed_cors_origins,
     settings,
+    validate_runtime_security,
 )
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logging.basicConfig(level=logging.INFO)
+    validate_runtime_security()
     if settings.bot_mode == "webhook":
         await runtime.start_webhook_mode()
     yield

@@ -1,3 +1,5 @@
+import hmac
+
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,6 +22,7 @@ def get_current_user(
     db: Session = Depends(get_db),
     x_telegram_init_data: str | None = Header(default=None, alias="X-Telegram-Init-Data"),
     x_telegram_id: int | None = Header(default=None, alias="X-Telegram-Id"),
+    x_internal_api_key: str | None = Header(default=None, alias="X-Internal-Api-Key"),
 ) -> User:
     if x_telegram_init_data:
         if not settings.bot_token:
@@ -38,10 +41,30 @@ def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=str(exc),
             ) from exc
-    else:
+    elif x_internal_api_key:
+        if not settings.internal_api_key or not hmac.compare_digest(
+            x_internal_api_key,
+            settings.internal_api_key,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid internal API key",
+            )
+        if x_telegram_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing Telegram user id for internal request",
+            )
+        telegram_id = x_telegram_id
+    elif settings.allow_insecure_dev_auth:
         telegram_id = x_telegram_id or settings.default_telegram_id
         if telegram_id is None:
             raise HTTPException(status_code=401, detail="Missing Telegram auth header")
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing signed Telegram auth header",
+        )
 
     user = db.scalar(select(User).where(User.telegram_id == telegram_id))
     if user is None:

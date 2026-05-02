@@ -4,10 +4,11 @@ import logging
 from aiogram.exceptions import TelegramNetworkError
 
 from app.bot.runtime import runtime
-from app.core.config import settings
+from app.core.config import settings, validate_runtime_security
 
 
 async def main() -> None:
+    validate_runtime_security()
     if not settings.bot_token:
         raise RuntimeError("BOT_TOKEN is not configured in .env")
     if settings.bot_mode == "webhook":

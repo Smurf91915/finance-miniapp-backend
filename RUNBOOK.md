@@ -42,6 +42,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
 BOT_TOKEN=...
 MINI_APP_URL=https://<frontend-public-url>
 BACKEND_BASE_URL=http://127.0.0.1:8000/api/v1
+INTERNAL_API_KEY=<shared-random-secret>
 BOT_MODE=polling
 ```
 
@@ -69,8 +70,8 @@ python3 -m app.bot.main
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:user@host:5432/finance_miniapp
-DEFAULT_TELEGRAM_ID=448027140
 BOT_TOKEN=...
+INTERNAL_API_KEY=<shared-random-secret>
 DEBUG=false
 CORS_ALLOWED_ORIGINS=https://<frontend-domain>
 ```
@@ -80,6 +81,7 @@ CORS_ALLOWED_ORIGINS=https://<frontend-domain>
 ```env
 BOT_TOKEN=...
 BACKEND_BASE_URL=https://<api-domain>/api/v1
+INTERNAL_API_KEY=<shared-random-secret>
 MINI_APP_URL=https://<frontend-domain>
 DEBUG=false
 ```
@@ -107,14 +109,24 @@ VITE_API_BASE_URL=https://<api-domain>/api/v1
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:<password>@<host>/<db>?sslmode=require
 BOT_TOKEN=...
+INTERNAL_API_KEY=<shared-random-secret>
 BOT_MODE=webhook
 PUBLIC_BASE_URL=https://<backend-domain>
+TELEGRAM_WEBHOOK_SECRET=<shared-random-secret>
 MINI_APP_URL=https://<frontend-domain>
 CORS_ALLOWED_ORIGINS=https://<frontend-domain>
 DEBUG=false
 ```
 
 `BACKEND_BASE_URL` в webhook-режиме можно не задавать: bot будет ходить в API через `127.0.0.1:$PORT`.
+
+Для локального браузерного режима без Telegram включай fallback только явно:
+
+```env
+DEBUG=true
+ALLOW_INSECURE_DEV_AUTH=true
+DEFAULT_TELEGRAM_ID=<local-dev-user-id>
+```
 
 Схема миграции:
 
