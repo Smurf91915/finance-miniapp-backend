@@ -3,11 +3,13 @@ from uuid import UUID
 
 import httpx
 
-from app.core.config import resolved_backend_base_url
+from app.core.config import resolved_backend_base_url, settings
 
 
 class BackendClient:
     def __init__(self) -> None:
+        if not settings.internal_api_key:
+            raise RuntimeError("INTERNAL_API_KEY is not configured")
         self._client = httpx.AsyncClient(base_url=resolved_backend_base_url(), timeout=20.0)
 
     async def close(self) -> None:
@@ -18,7 +20,10 @@ class BackendClient:
             method,
             path,
             json=json,
-            headers={"X-Telegram-Id": str(telegram_id)},
+            headers={
+                "X-Telegram-Id": str(telegram_id),
+                "X-Internal-Api-Key": settings.internal_api_key,
+            },
         )
         response.raise_for_status()
         return response.json()

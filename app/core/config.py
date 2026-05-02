@@ -8,8 +8,10 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str | None = None
     default_telegram_id: int | None = None
+    allow_insecure_dev_auth: bool = False
     port: int = 8000
     backend_base_url: str | None = None
+    internal_api_key: str | None = None
     bot_token: str | None = None
     bot_mode: Literal["polling", "webhook"] = "polling"
     telegram_proxy: str | None = None
@@ -81,3 +83,11 @@ def require_database_url() -> str:
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is not configured")
     return settings.database_url
+
+
+def validate_runtime_security() -> None:
+    if settings.allow_insecure_dev_auth and not settings.debug:
+        raise RuntimeError("ALLOW_INSECURE_DEV_AUTH=true requires DEBUG=true")
+
+    if settings.bot_mode == "webhook" and not settings.telegram_webhook_secret:
+        raise RuntimeError("TELEGRAM_WEBHOOK_SECRET is required when BOT_MODE=webhook")

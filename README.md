@@ -61,8 +61,8 @@ TELEGRAM_PROXY=http://user:pass@host:8080
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:user@host:5432/finance_miniapp
-DEFAULT_TELEGRAM_ID=448027140
 BOT_TOKEN=...
+INTERNAL_API_KEY=...
 DEBUG=false
 CORS_ALLOWED_ORIGINS=https://<frontend-domain>
 ```
@@ -72,6 +72,7 @@ CORS_ALLOWED_ORIGINS=https://<frontend-domain>
 ```env
 BOT_TOKEN=...
 BACKEND_BASE_URL=https://<api-domain>/api/v1
+INTERNAL_API_KEY=...
 MINI_APP_URL=https://<frontend-domain>
 DEBUG=false
 ```
@@ -80,12 +81,14 @@ DEBUG=false
 
 ## Текущая схема auth
 
-Внутри Telegram Mini App backend проверяет сырой `Telegram.WebApp.initData` по `BOT_TOKEN`.
+Внутри Telegram Mini App backend принимает только подписанный `Telegram.WebApp.initData`.
 
-Для локального браузерного режима fallback остается через заголовок:
+Telegram-бот ходит в API по отдельному внутреннему ключу:
 
 ```text
-X-Telegram-Id: 448027140
+X-Internal-Api-Key: <INTERNAL_API_KEY>
+X-Telegram-Id: <telegram user id>
 ```
 
-Если заголовок не передан, backend использует `DEFAULT_TELEGRAM_ID` из `.env`.
+Небезопасный browser fallback через `X-Telegram-Id` разрешен только в локальной разработке при
+`DEBUG=true` и `ALLOW_INSECURE_DEV_AUTH=true`.
