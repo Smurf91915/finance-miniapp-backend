@@ -1,12 +1,9 @@
-import asyncio
-import logging
 from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, MenuButtonCommands, MenuButtonWebApp, Update, WebAppInfo
 
@@ -28,7 +25,6 @@ class TelegramBotRuntime:
         self.bot: Bot | None = None
         self.dispatcher: Dispatcher | None = None
         self.backend: BackendClient | None = None
-        self._webhook_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
         if self.bot and self.dispatcher and self.backend:
@@ -75,11 +71,7 @@ class TelegramBotRuntime:
     async def start_webhook_mode(self) -> None:
         if settings.bot_mode != "webhook":
             return
-
-        await self.initialize()
-        if self._webhook_task and not self._webhook_task.done():
-            return
-        self._webhook_task = asyncio.create_task(self._ensure_webhook_loop())
+        await self.configure_for_webhook()
 
     async def handle_webhook_update(self, payload: dict[str, Any]) -> None:
         await self.initialize()
@@ -90,14 +82,6 @@ class TelegramBotRuntime:
         await self.dispatcher.feed_update(self.bot, update)
 
     async def shutdown(self) -> None:
-        if self._webhook_task is not None:
-            self._webhook_task.cancel()
-            try:
-                await self._webhook_task
-            except asyncio.CancelledError:
-                pass
-            self._webhook_task = None
-
         if self.backend is not None:
             await self.backend.close()
             self.backend = None
@@ -121,18 +105,5 @@ class TelegramBotRuntime:
             )
             return
         await self.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-
-    async def _ensure_webhook_loop(self) -> None:
-        while True:
-            try:
-                await self.configure_for_webhook()
-                logging.info("Telegram webhook configured")
-                return
-            except TelegramNetworkError:
-                logging.exception("Telegram API is unavailable, retrying webhook setup in 5 seconds")
-            except Exception:
-                logging.exception("Failed to configure Telegram webhook, retrying in 5 seconds")
-            await asyncio.sleep(5)
-
 
 runtime = TelegramBotRuntime()
