@@ -188,4 +188,4 @@ DEFAULT_TELEGRAM_ID=<local-dev-user-id>
 ## 7. Следующий технический долг
 
 - автоматизировать post-deploy smoke check для `/health` и `getWebhookInfo`
-- расширить smoke coverage на `income`, `goal_allocation` и text parse flows
+- расширить smoke coverage на `investment`, delete flows и category management
