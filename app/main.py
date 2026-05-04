@@ -17,9 +17,12 @@ from app.core.config import (
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logging.basicConfig(level=logging.INFO)
-    validate_runtime_security()
-    if settings.bot_mode == "webhook":
-        await runtime.start_webhook_mode()
+    try:
+        validate_runtime_security()
+        if settings.bot_mode == "webhook":
+            await runtime.start_webhook_mode()
+    except Exception:
+        logging.exception("Application startup completed with bot/webhook disabled")
     yield
     await runtime.shutdown()
 
