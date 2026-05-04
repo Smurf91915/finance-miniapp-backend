@@ -13,6 +13,7 @@ uvicorn app.main:app --reload
 
 ```bash
 curl http://127.0.0.1:8000/health
+python3 scripts/smoke_test_api.py
 ```
 
 Ожидаемый ответ:
@@ -56,6 +57,44 @@ python3 -m app.bot.main
 Если `api.telegram.org` недоступен локально, вынеси bot runtime в Railway и оставь API локально или тоже вынеси его отдельно.
 
 ## 4. Стабильный деплой без туннелей
+
+### Vercel: текущая production-схема
+
+Backend может работать как один Vercel service вместе с Telegram webhook runtime.
+
+Нужные env:
+
+```env
+DATABASE_URL=postgresql+psycopg://postgres:<password>@<host>/<db>?sslmode=require
+BOT_TOKEN=...
+INTERNAL_API_KEY=<shared-random-secret>
+BOT_MODE=webhook
+PUBLIC_BASE_URL=https://<backend-domain>
+TELEGRAM_WEBHOOK_SECRET=<shared-random-secret>
+MINI_APP_URL=https://<frontend-domain>
+CORS_ALLOWED_ORIGINS=https://<frontend-domain>
+DEBUG=false
+```
+
+Deploy:
+
+```bash
+cd /Users/n.smurova/finance-miniapp-backend
+npm_config_cache=/tmp/.npm-vercel-sync npx vercel deploy --prod --yes
+```
+
+Проверка после deploy/restart:
+
+```bash
+python3 scripts/smoke_check_prod.py
+```
+
+Ожидаемое состояние:
+
+- `/health` возвращает `200` и `{"status":"ok"}`
+- `getWebhookInfo` возвращает `https://<backend-domain>/telegram/webhook`
+
+### Railway: альтернативная схема
 
 ### Backend repo
 
@@ -148,5 +187,5 @@ DEFAULT_TELEGRAM_ID=<local-dev-user-id>
 
 ## 7. Следующий технический долг
 
-- постоянный prod-домен вместо временного Railway subdomain
-- редактирование и возвраты из интерфейса
+- автоматизировать post-deploy smoke check для `/health` и `getWebhookInfo`
+- расширить smoke coverage на `income`, `goal_allocation` и text parse flows

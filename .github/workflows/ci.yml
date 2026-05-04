@@ -113,3 +113,18 @@ jobs:
           assert dashboard["available_minor"] == 0
           assert isinstance(categories, list)
           PY
+
+      - name: Smoke test edit, refund, recurring flows
+        run: |
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          api_pid=$!
+          trap "kill $api_pid" EXIT
+
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8000/health >/tmp/backend-health-flows.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          python scripts/smoke_test_api.py

@@ -6,7 +6,7 @@ Backend на `FastAPI` + `SQLAlchemy` для проекта `finance-miniapp`.
 
 - API для операций, категорий, целей, аналитики и recurring expenses
 - Telegram-бот на `aiogram`
-- Railway-конфиги для постоянного деплоя API и bot runtime
+- конфиги деплоя для Vercel, Railway и Render
 
 ## Локальный запуск
 
@@ -32,6 +32,7 @@ python3 -m app.bot.main
 
 ```bash
 curl http://127.0.0.1:8000/health
+python3 scripts/smoke_test_api.py
 ```
 
 Если `api.telegram.org` недоступен из локальной сети, для бота можно указать proxy:
@@ -44,6 +45,56 @@ TELEGRAM_PROXY=socks5://user:pass@host:1080
 
 ```env
 TELEGRAM_PROXY=http://user:pass@host:8080
+```
+
+## Production на Vercel
+
+Текущая production-схема для backend: один Vercel deployment с `FastAPI` и Telegram webhook runtime внутри приложения.
+
+Обязательные env:
+
+```env
+DATABASE_URL=postgresql+psycopg://postgres:<password>@<host>/<db>?sslmode=require
+BOT_TOKEN=...
+INTERNAL_API_KEY=...
+BOT_MODE=webhook
+PUBLIC_BASE_URL=https://<backend-domain>
+TELEGRAM_WEBHOOK_SECRET=<shared-random-secret>
+MINI_APP_URL=https://<frontend-domain>
+CORS_ALLOWED_ORIGINS=https://<frontend-domain>
+DEBUG=false
+```
+
+Поведение runtime:
+
+- backend отвечает на `/health`, даже если настройка webhook при старте упала;
+- при успешном старте приложение синхронно регистрирует webhook на
+  `PUBLIC_BASE_URL + /telegram/webhook`;
+- в webhook-режиме bot runtime по умолчанию ходит во внутренний API через тот же backend runtime.
+
+Проверки после деплоя или рестарта:
+
+```bash
+curl --max-time 20 -i https://<backend-domain>/health
+curl -sS "https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo"
+```
+
+Ожидаемый webhook URL:
+
+```text
+https://<backend-domain>/telegram/webhook
+```
+
+Для production deploy из backend-репозитория:
+
+```bash
+npm_config_cache=/tmp/.npm-vercel-sync npx vercel deploy --prod --yes
+```
+
+Автоматическая проверка после deploy/restart:
+
+```bash
+python3 scripts/smoke_check_prod.py
 ```
 
 ## Railway без временных туннелей

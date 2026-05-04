@@ -2,17 +2,21 @@
 
 Цель: уехать с Railway на бесплатный стек без выделенного bot worker.
 
+Сейчас эталонный production runtime уже работает в схеме `backend + webhook` внутри одного web deployment.
+
 ## Целевая схема
 
-- frontend: Render Static Site или Cloudflare Pages
+- frontend: Vercel, Render Static Site или Cloudflare Pages
 - database: Neon Postgres
-- backend + Telegram bot: один web service на Render
+- backend + Telegram bot: один web service на Vercel или Render
 
 Бот в этом режиме работает через webhook внутри FastAPI-приложения. Отдельный процесс `python -m app.bot.main` больше не нужен.
 
 ## 1. Frontend
 
 `finance-miniapp-frontend` можно деплоить как обычный Vite static build.
+
+Для Vercel достаточно задать `VITE_API_BASE_URL` на этапе build-time.
 
 Для Render в репозитории уже есть `render.yaml`. Если создавать сервис вручную, используй:
 
@@ -50,27 +54,28 @@ psql "<neon-connection-string>" < finance_miniapp.sql
 BOT_TOKEN=...
 BOT_MODE=webhook
 PUBLIC_BASE_URL=https://<backend-domain>
+TELEGRAM_WEBHOOK_SECRET=<random-secret>
 MINI_APP_URL=https://<frontend-domain>
 CORS_ALLOWED_ORIGINS=https://<frontend-domain>
 DEBUG=false
-```
-
-Опционально:
-
-```env
-TELEGRAM_WEBHOOK_SECRET=<random-secret>
 ```
 
 Если `BACKEND_BASE_URL` не задан, bot runtime сам использует `http://127.0.0.1:$PORT/api/v1`.
 
 ### Start command
 
-На Render можно использовать либо готовый `render.yaml`, либо Docker deploy из репозитория. В обоих случаях `app.main` сам:
+На Vercel или Render `app.main` сам:
 
 - поднимет FastAPI
 - запустит Telegram webhook runtime
 - зарегистрирует webhook в Telegram
 - примет обновления на `/telegram/webhook`
+
+Для Vercel deploy из backend-репозитория:
+
+```bash
+npm_config_cache=/tmp/.npm-vercel-sync npx vercel deploy --prod --yes
+```
 
 ## 4. Docker Deploy
 
@@ -120,9 +125,10 @@ VITE_API_BASE_URL=https://<backend>.onrender.com/api/v1
 ## 6. Smoke Test
 
 1. Открой `https://<backend-domain>/health`
-2. Проверь, что frontend открывается
-3. Выполни `/start` в Telegram
-4. Нажми `Открыть приложение`
-5. Создай расход в Mini App
-6. Отправь боту `кофе 320`
-7. Убедись, что операция видна и в истории, и в боте
+2. Проверь через `getWebhookInfo`, что webhook смотрит на `https://<backend-domain>/telegram/webhook`
+3. Проверь, что frontend открывается
+4. Выполни `/start` в Telegram
+5. Нажми `Открыть приложение`
+6. Создай расход в Mini App
+7. Отправь боту `кофе 320`
+8. Убедись, что операция видна и в истории, и в боте
