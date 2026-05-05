@@ -114,7 +114,7 @@ jobs:
           assert isinstance(categories, list)
           PY
 
-      - name: Smoke test income, goals, recurring and parse flows
+      - name: Smoke test investment, delete, categories and parse flows
         run: |
           uvicorn app.main:app --host 127.0.0.1 --port 8000 &
           api_pid=$!
