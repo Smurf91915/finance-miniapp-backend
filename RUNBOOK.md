@@ -188,4 +188,4 @@ DEFAULT_TELEGRAM_ID=<local-dev-user-id>
 ## 7. Следующий технический долг
 
 - автоматизировать post-deploy smoke check для `/health` и `getWebhookInfo`
-- покрыть bot/webhook delivery и signed Telegram auth в автоматизированном smoke
+- добавить внешний e2e smoke против реального Telegram delivery path после deploy

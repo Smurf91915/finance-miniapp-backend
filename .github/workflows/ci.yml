@@ -128,3 +128,7 @@ jobs:
           done
 
           python scripts/smoke_test_api.py
+
+      - name: Smoke test Telegram auth and webhook runtime
+        run: |
+          python scripts/smoke_test_telegram_runtime.py
