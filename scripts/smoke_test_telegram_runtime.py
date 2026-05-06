@@ -6,12 +6,13 @@ import hmac
 import json
 import os
 import time
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
+from sqlalchemy import select
 
-DEFAULT_TELEGRAM_ID = 448027140
+
+DEFAULT_TELEGRAM_ID = 448027141
 DEFAULT_BOT_TOKEN = "test-bot-token"
 DEFAULT_WEBHOOK_SECRET = "ci-webhook-secret"
 
@@ -66,7 +67,9 @@ def main() -> int:
 
     from app.bot.runtime import runtime
     from app.core.config import normalized_telegram_webhook_path
+    from app.db.session import SessionLocal
     from app.main import app
+    from app.models import User
 
     delivered_updates: list[dict[str, Any]] = []
 
@@ -78,6 +81,19 @@ def main() -> int:
 
     runtime.start_webhook_mode = fake_start_webhook_mode
     runtime.handle_webhook_update = fake_handle_webhook_update
+
+    with SessionLocal() as db:
+        existing_user = db.scalar(select(User).where(User.telegram_id == DEFAULT_TELEGRAM_ID))
+        if existing_user is None:
+            db.add(
+                User(
+                    telegram_id=DEFAULT_TELEGRAM_ID,
+                    name="Telegram Smoke",
+                    timezone="Europe/Samara",
+                    currency="RUB",
+                )
+            )
+            db.commit()
 
     signed_init_data = build_signed_init_data(os.environ["BOT_TOKEN"], DEFAULT_TELEGRAM_ID)
     invalid_init_data = f"{signed_init_data}0"
