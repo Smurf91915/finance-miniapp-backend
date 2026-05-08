@@ -97,6 +97,11 @@ npm_config_cache=/tmp/.npm-vercel-sync npx vercel deploy --prod --yes
 python3 scripts/smoke_check_prod.py
 ```
 
+Сейчас этот smoke дополнительно проверяет:
+
+- signed `Telegram initData` на production API;
+- отказ webhook endpoint без `X-Telegram-Bot-Api-Secret-Token`.
+
 ## Railway без временных туннелей
 
 Из backend-репозитория поднимаются два отдельных сервиса:
