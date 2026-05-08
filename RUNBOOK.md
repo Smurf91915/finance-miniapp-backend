@@ -93,6 +93,8 @@ python3 scripts/smoke_check_prod.py
 
 - `/health` возвращает `200` и `{"status":"ok"}`
 - `getWebhookInfo` возвращает `https://<backend-domain>/telegram/webhook`
+- signed `Telegram initData` проходит на production API
+- webhook без секрета получает `403`
 
 ### Railway: альтернативная схема
 
@@ -187,5 +189,4 @@ DEFAULT_TELEGRAM_ID=<local-dev-user-id>
 
 ## 7. Следующий технический долг
 
-- автоматизировать post-deploy smoke check для `/health` и `getWebhookInfo`
-- добавить внешний e2e smoke против реального Telegram delivery path после deploy
+- добавить внешний e2e smoke с отдельным Telegram actor для реального delivery path после deploy

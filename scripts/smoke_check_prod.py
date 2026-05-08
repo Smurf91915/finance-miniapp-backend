@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib import parse
@@ -25,6 +28,8 @@ class Config:
     webhook_path: str
     timeout_seconds: float
     backend_base_url: str | None
+    telegram_webhook_secret: str | None
+    smoke_telegram_id: int
 
     @property
     def expected_webhook_url(self) -> str:
@@ -58,6 +63,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
         help="HTTP timeout in seconds for each request.",
+    )
+    parser.add_argument(
+        "--telegram-id",
+        type=int,
+        default=None,
+        help="Telegram user id used to generate signed initData for production auth checks.",
     )
     return parser.parse_args()
 
@@ -100,6 +111,19 @@ def resolve_config(args: argparse.Namespace) -> Config:
     if backend_base_url:
         backend_base_url = backend_base_url.rstrip("/")
 
+    telegram_webhook_secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET") or dotenv_values.get("TELEGRAM_WEBHOOK_SECRET")
+
+    raw_telegram_id = (
+        args.telegram_id
+        or os.environ.get("DEFAULT_TELEGRAM_ID")
+        or dotenv_values.get("DEFAULT_TELEGRAM_ID")
+        or "1"
+    )
+    try:
+        smoke_telegram_id = int(raw_telegram_id)
+    except ValueError as exc:
+        raise SmokeCheckError(f"Invalid Telegram id for smoke auth check: {raw_telegram_id!r}") from exc
+
     webhook_path = (
         os.environ.get("TELEGRAM_WEBHOOK_PATH")
         or dotenv_values.get("TELEGRAM_WEBHOOK_PATH")
@@ -114,21 +138,39 @@ def resolve_config(args: argparse.Namespace) -> Config:
         webhook_path=webhook_path,
         timeout_seconds=args.timeout,
         backend_base_url=backend_base_url,
+        telegram_webhook_secret=telegram_webhook_secret,
+        smoke_telegram_id=smoke_telegram_id,
     )
 
 
-def fetch_json(url: str, timeout_seconds: float, label: str) -> tuple[int, object]:
+def fetch_json(
+    url: str,
+    timeout_seconds: float,
+    label: str,
+    *,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    json_body: object | None = None,
+) -> tuple[int, object]:
     command = [
         "curl",
         "--silent",
         "--show-error",
         "--max-time",
         str(timeout_seconds),
+        "--request",
+        method,
         "--write-out",
         "\n%{http_code}",
         "--url",
         url,
     ]
+    if headers:
+        for key, value in headers.items():
+            command.extend(["--header", f"{key}: {value}"])
+    if json_body is not None:
+        command.extend(["--header", "Content-Type: application/json", "--data", json.dumps(json_body)])
+
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     if completed.returncode != 0:
         stderr = completed.stderr.strip() or f"exit code {completed.returncode}"
@@ -183,6 +225,75 @@ def check_telegram_webhook(config: Config) -> None:
         "telegram webhook ok: "
         f"{expected_url} (pending_update_count={pending_update_count})"
     )
+
+
+def build_signed_init_data(bot_token: str, telegram_id: int) -> str:
+    user = {
+        "id": telegram_id,
+        "is_bot": False,
+        "first_name": "Smoke",
+        "username": "prod_smoke",
+        "language_code": "ru",
+    }
+    values = {
+        "auth_date": str(int(time.time())),
+        "query_id": "AAHdF6IQAAAAAN0XohDhrOrc",
+        "user": json.dumps(user, ensure_ascii=False, separators=(",", ":")),
+    }
+    secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(values.items(), key=lambda item: item[0]))
+    values["hash"] = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+    return parse.urlencode(values)
+
+
+def check_signed_telegram_auth(config: Config) -> None:
+    signed_init_data = build_signed_init_data(config.bot_token, config.smoke_telegram_id)
+    dashboard_url = f"{config.base_url}/api/v1/dashboard"
+
+    status_code, payload = fetch_json(
+        dashboard_url,
+        config.timeout_seconds,
+        "production dashboard via signed Telegram auth",
+        headers={"X-Telegram-Init-Data": signed_init_data},
+    )
+    if status_code not in {200, 404}:
+        raise SmokeCheckError(f"Signed Telegram auth returned unexpected HTTP {status_code}: {payload!r}")
+    if status_code == 404 and payload != {"detail": "User not found"}:
+        raise SmokeCheckError(f"Signed Telegram auth 404 payload is unexpected: {payload!r}")
+
+    invalid_status_code, invalid_payload = fetch_json(
+        dashboard_url,
+        config.timeout_seconds,
+        "production dashboard via invalid Telegram auth",
+        headers={"X-Telegram-Init-Data": f"{signed_init_data}0"},
+    )
+    if invalid_status_code != 401:
+        raise SmokeCheckError(
+            "Invalid signed Telegram auth should return HTTP 401, "
+            f"got {invalid_status_code}: {invalid_payload!r}"
+        )
+
+    print(
+        "signed telegram auth ok: "
+        f"valid={status_code}, invalid={invalid_status_code}, telegram_id={config.smoke_telegram_id}"
+    )
+
+
+def check_webhook_secret_guard(config: Config) -> None:
+    webhook_url = config.expected_webhook_url
+    status_code, payload = fetch_json(
+        webhook_url,
+        config.timeout_seconds,
+        "production webhook without secret",
+        method="POST",
+        json_body={},
+    )
+    if status_code != 403:
+        raise SmokeCheckError(f"Webhook without secret should return HTTP 403, got {status_code}: {payload!r}")
+    if payload != {"detail": "Invalid webhook secret"}:
+        raise SmokeCheckError(f"Unexpected webhook secret guard payload: {payload!r}")
+
+    print("webhook secret guard ok: missing secret is rejected with 403")
 
 
 def derive_base_url(config: Config) -> str:
@@ -249,9 +360,13 @@ def main() -> int:
             webhook_path=config.webhook_path,
             timeout_seconds=config.timeout_seconds,
             backend_base_url=config.backend_base_url,
+            telegram_webhook_secret=config.telegram_webhook_secret,
+            smoke_telegram_id=config.smoke_telegram_id,
         )
         check_health(config)
         check_telegram_webhook(config)
+        check_signed_telegram_auth(config)
+        check_webhook_secret_guard(config)
     except SmokeCheckError as exc:
         print(f"smoke check failed: {exc}", file=sys.stderr)
         return 1
